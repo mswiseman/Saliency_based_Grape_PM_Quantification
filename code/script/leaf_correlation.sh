@@ -26,10 +26,6 @@ To use:
 4. Open terminal
 5. bash leaf_correlation.sh
 
-"""
-
-"""
-
 General Notes for above parameters:
 
 --model_type
