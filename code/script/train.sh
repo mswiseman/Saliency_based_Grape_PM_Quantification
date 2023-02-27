@@ -19,7 +19,6 @@ python3 ../classification/run.py        \
             --nworker 4                 \
             --cuda_device 0   
 
-#!/bin/bash
 
 # Script for training deep learning classification models
 # Originally written by Tian Qiu (https://bit.ly/3HKwcT4)
