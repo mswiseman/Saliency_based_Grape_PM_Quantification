@@ -14,6 +14,9 @@ from torch.utils.tensorboard import SummaryWriter
 from recorder import Recorder
 from utils import makeSubdir, logInfoWithDot, timeSince, init_model, init_optimizer
 
+if __name__ == "__main__":
+    from utils import init_model, load_model, parse_model, plot_confusion_matrix
+
 
 class Solver():
     def __init__(self, model, dataloader, optimizer, scheduler, logger, writer):
@@ -122,7 +125,6 @@ class Solver():
             self.train_one_epoch(epoch)
             self.test_one_epoch(epoch)
 
-            # Update learning rate after every specified times iteration
             if self.scheduler:
                 self.scheduler.step()
 
@@ -176,7 +178,7 @@ class HyphalSolver(Solver):
                 loss = loss1 + 0.4 * loss2
             else:
                 preds = self.model(images)
-                loss = self.criterion(preds, labels)
+                loss = self.criterion(preds, labels) # binary cross-entropy loss
 
             # Update
             self.train_recorder.update(preds, labels, loss.item())
@@ -193,18 +195,43 @@ class HyphalSolver(Solver):
                             timeSince(self.start_time)))
 
             if i == len(self.trainloader) - 1:
-                accuracy = 100.0 * self.train_recorder.correct / self.train_recorder.total
+                # Calculate the new counts of false positives, false negatives, true positives, true negatives, and correct predictions
+                fp = self.train_recorder.false_positive_counts
+                fn = self.train_recorder.false_negative_counts
+                tp = self.train_recorder.true_positive_counts
+                tn = self.train_recorder.true_negative_counts
+                correct = self.train_recorder.correct_counts
+                total = self.train_recorder.total_counts
+
+                # Calculate the accuracy, precision, recall, and F1 score
+                accuracy = 100.0 * correct / total
+                precision = 100.0 * tp / (tp + fp)
+                recall = 100.0 * tp / (tp + fn)
+                f1 = 100 * (2 * precision * recall / (precision + recall))
+                
                 self.logger.info(
                     'Loss of the network on the {0} train images: {1:.6f}'.
-                    format(self.train_recorder.total, self.train_recorder.loss))
+                    format(total, self.train_recorder.loss))
                 self.logger.info(
                     'Accuracy of the network on the {0} train images: {1:.3f}%'
-                    .format(self.train_recorder.total, accuracy))
+                    .format(total, accuracy))
+                self.logger.info(
+                    'Precision of the network on the {0} train images: {1:.3f}'
+                    .format(total, precision))
+                self.logger.info(
+                    'Recall of the network on the {0} train images: {1:.3f}'
+                    .format(total, recall))
+                self.logger.info(
+                    'F1 score of the network on the {0} train images: {1:.3f}'
+                    .format(total, f1))
 
                 # Write to Tensorboard file
                 self.writer.add_scalar(
                     'Loss/train', self.train_recorder.loss, ep)
                 self.writer.add_scalar('Accuracy/train', accuracy, ep)
+                self.writer.add_scalar('Precision/train', precision, ep)
+                self.writer.add_scalar('Recall/train', recall, ep)
+                self.writer.add_scalar('F1/train', f1, ep)
 
     def test_one_epoch(self, ep):
         self.model.eval()
@@ -220,13 +247,34 @@ class HyphalSolver(Solver):
 
             self.test_recorder.update(preds, labels, loss.item())
 
-        accuracy = 100.0 * self.test_recorder.correct / self.test_recorder.total
+        fp = self.test_recorder.false_positive_counts
+        fn = self.test_recorder.false_negative_counts
+        tp = self.test_recorder.true_positive_counts
+        tn = self.test_recorder.true_negative_counts
+        correct = self.test_recorder.correct_counts
+        total = self.test_recorder.total_counts
+
+        # Calculate the accuracy, precision, recall, and F1 score
+        accuracy = 100.0 * correct / total
+        precision = 100.0 * tp / (tp + fp)
+        recall = 100.0 * tp / (tp + fn)
+        f1 = 100 * (2 * precision * recall / (precision + recall))
+
         self.logger.info(
             'Loss of the network on the {0} val images: {1:.6f}'.format(
                 self.test_recorder.total, self.test_recorder.loss))
         self.logger.info(
             'Accuracy of the network on the {0} val images: {1:.3f}%'.format(
                 self.test_recorder.total, accuracy))
+        self.logger.info(
+            'Precision of the network on the {0} val images: {1:.3f}%'.format(
+                self.test_recorder.total, precision))
+        self.logger.info(
+            'Recall of the network on the {0} val images: {1:.3f}%'.format(
+                self.test_recorder.total, recall))
+        self.logger.info(
+            'F1 of the network on the {0} val images: {1:.3f}%'.format(
+                self.test_recorder.total, f1))
 
         # Compare accuracy
         self.is_best = accuracy > self.best_acc
@@ -239,3 +287,9 @@ class HyphalSolver(Solver):
         # Write to Tensorboard file
         self.writer.add_scalar('Loss/val', self.test_recorder.loss, ep)
         self.writer.add_scalar('Accuracy/val', accuracy, ep)
+        self.writer.add_scalar('Precision/val', precision, ep)
+        self.writer.add_scalar('Recall/val', recall, ep)
+        self.writer.add_scalar('F1/val', f1, ep)
+
+def main(): 
+    HyphalSolver()
